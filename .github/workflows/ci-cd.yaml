@@ -1,0 +1,63 @@
+name: ASP.NET MVC CI/CD
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: windows-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Setup MSBuild
+      uses: microsoft/setup-msbuild@v1.1
+    
+    - name: Setup NuGet
+      uses: NuGet/setup-nuget@v1.1.1
+    
+    - name: Restore NuGet packages
+      run: nuget restore YourSolution.sln
+    
+    - name: Build solution
+      run: msbuild YourSolution.sln /p:Configuration=Release /p:DeployOnBuild=true /p:PublishProfile=FolderProfile
+    
+    - name: Upload artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: webapp
+        path: YourProjectPath/bin/Release/Publish/
+
+  deploy:
+    needs: build
+    runs-on: windows-latest
+    
+    steps:
+    - name: Download artifact
+      uses: actions/download-artifact@v3
+      with:
+        name: webapp
+    
+    - name: Deploy to IIS
+      shell: powershell
+      run: |
+        # Setup IIS deployment using Web Deploy
+        # Replace these values with your server details
+        $websiteName = "YourWebsiteName"
+        $serverName = "${{ secrets.SERVER_NAME }}"
+        $username = "${{ secrets.DEPLOY_USERNAME }}"
+        $password = "${{ secrets.DEPLOY_PASSWORD }}"
+        
+        # Install Web Deploy
+        choco install webdeploy -y
+        
+        # Deploy using MSDeploy
+        "C:\Program Files\IIS\Microsoft Web Deploy V3\msdeploy.exe" `
+          -source:contentPath="$pwd" `
+          -dest:contentPath=$websiteName,computerName="https://$serverName:8172/msdeploy.axd?site=$websiteName",username="$username",password="$password",authtype="Basic" `
+          -verb:sync `
+          -allowUntrusted `
+          -enableRule:AppOffline
